@@ -24,20 +24,20 @@ attributes and public and private methods.
 |            My_Class           |
 |-------------------------------|
 | + Do_Something(               |
-|       IN <type_x> param_x,    |
-|       OUT <type_y> param_y )  |
+|       IN param_x:type_x,      |
+|       OUT param_y:type_y )    |
 | - Do_Something_Private(       |
-|       IN <type_z> param_z )   |
+|       IN param_z:type_z )     |
 |-------------------------------|
-| - <type_1> attribute_1        |
-| - <type_2> attribute_2        |
+| - attribute_1:type_1          |
+| - attribute_2:type_2          |
 |-------------------------------|
 ```
 
 This class can be instanciated :
 ```
 |-------------------------------|
-|       My_Object:My_Class       |
+|       My_Object:My_Class      |
 |-------------------------------|
 | - attribute_1 = 5             |
 | - attribute_2 = 13            |
@@ -64,8 +64,8 @@ The structure is defined in the header file of the class.
 
 /* Class declaration */
 typedef struct {
-    <type_1> attribute_1;
-    <type_2> attribute_2;
+    type_1 attribute_1;
+    type_2 attribute_2;
 } My_Class;
 
 #endif
@@ -98,15 +98,15 @@ The public methods are :
 
 /* Class declaration */
 typedef struct {
-    <type_1> attribute_1;
-    <type_2> attribute_2;
+    type_1 attribute_1;
+    type_2 attribute_2;
 } My_Class;
 
 /* Public methods declaration */
 void Do_Something(
     const My_Class* Me,
-    <type_x> param_x,
-    <type_y>* param_y );
+    type_x param_x,
+    type_y* param_y );
 
 #endif
 /*******************************************/
@@ -121,8 +121,8 @@ void Do_Something(
 /* Public methods definition */
 void Do_Something(
     const My_Class* Me,
-    <type_x> param_x,
-    <type_y>* param_y )
+    type_x param_x,
+    type_y* param_y )
 {
     ...
 }
@@ -143,13 +143,13 @@ They are _static_.
 /* Private methods declaration */
 static void Do_Something_Private(
     const My_Class* Me,
-    <type_z> param_z );
+    type_z param_z );
 
 
 /* Private methods definition */
 static void Do_Something_Private(
     const My_Class* Me,
-    <type_z> param_z )
+    type_z param_z )
 {
     ...
 }
@@ -211,13 +211,13 @@ The split is done in the header file of the class.
 
 /* Class variables */
 typedef struct {
-    <type_1> attribute_1;
+    type_1 attribute_1;
 } My_Class_Var;
 
 /* Class declaration */
 typedef struct {
     const My_Class_Var* var_attr;
-    const <type_2> attribute_2;
+    const type_2 attribute_2;
 } My_Class;
 
 /* Public methods */
@@ -278,6 +278,9 @@ instance of the associated class (linked object).
 | - ...                         |           | - ...                         |
 |-------------------------------|           |-------------------------------|
 ```
+
+_Note : to ease readability, parameters of the operations and attributes are
+skipped._
 
 The association is implemented by a constant reference to the linked object.  
 The symbol of the referenced object is the name of the association.  
@@ -640,6 +643,248 @@ Provider ports are equivalent to realized interfaces while requirer ports are
 equivalent to associated interfaces._
 
 ## Events
+
+An event is a signal that that is broadcast by an object to one or several
+other objects.  
+It can have some parameters.
+
+```
+|-------------------------------|
+|           <<event>>           |
+|        Something_Occured      |
+|-------------------------------|
+| + Param_1:type_1              | 
+| + Param_2:type_2              | 
+|-------------------------------|
+```
+
+An event signature is declared in a specific header file as a pointer of
+function which arguments are the parameters of the event.  
+The event parameters are passed by value.
+
+```C
+/*******************************************/
+/* Something_Occured.h */
+/*******************************************/
+#ifndef SOMETHING_OCCURED_H
+#define SOMETHING_OCCURED_H
+
+typedef (void)(*Something_Occured)( type_1, type_2 );
+
+#endif
+/*******************************************/
+```
+
+### Event sending
+
+An event is sent by a class.  
+
+```
+|-------------------------------|           |-------------------------------|
+|         Sending_Class         |           |           <<event>>           |
+|-------------------------------|           |        Something_Occured      |
+| ...                           |   <<send>>|-------------------------------|
+|-------------------------------|- - - - - >| + Param_1:type_1              | 
+| ...                           |           | + Param_2:type_2              | 
+|-------------------------------|           |-------------------------------|
+```
+The sending is implemented in the constant part of the class.
+
+```C
+/*******************************************/
+/* Sending_Class.h */
+/*******************************************/
+#ifndef SENDING_CLASS_H
+#define SENDING_CLASS_H
+
+/* Sent event inclusion */
+#include "Something_Occured.h"
+
+...
+
+/* Class declaration */
+typedef struct {
+    ...
+    /* Sent event */
+    Something_Occured Stg_Occured;
+    ...
+} Sending_Class;
+
+#endif
+/*******************************************/
+```
+
+The sending can be used by any method of the class.
+
+```C
+/*******************************************/
+/* Sending_Class.c */
+/*******************************************/
+#include "Sending_Class.h"
+
+/* ... */
+void <Any_Method>(
+    const Sending_Class* Me,
+    ... )
+{
+    ...
+    Me->Stg_Occured( value_1, value_2 );
+    ...
+}
+/*******************************************/
+```
+
+An object send the actual event.
+
+```
+|-------------------------------|           |-------------------------------|
+|  Sender_Object:Sending_Class  |           |           <<event>>           |
+|-------------------------------|           |    Fired:Something_Occured    |
+| ...                           |   <<send>>|-------------------------------|
+|-------------------------------|- - - - - >| + Param_1:type_1              | 
+| ...                           |           | + Param_2:type_2              | 
+|-------------------------------|           |-------------------------------|
+```
+
+The event is defined in the source file of the object.  
+When the event is sent, entry points provided by the objects receiving the
+event are called (see Event reception).
+
+```C
+/*******************************************/
+/* Sender_Object.c */
+/*******************************************/
+#include "Sender_Object.h"
+
+/* Sent event signature inclusion */
+#include "Something_Occured.h"
+
+/* Sent event declaration */
+static void Fired(
+    type_1 param_1,
+    type_2 param_2 );
+
+/* Object */
+const Sending_Class Sender_Object = {
+    ...
+    /* Sent event */
+    .Stg_Occured = Fired,
+    ...
+};
+
+/* Sent event definition */
+static void Fired(
+    type_1 param_1,
+    type_2 param_2 )
+{
+    /* Receptor entry point */
+}
+/*******************************************/
+```
+
+### Event reception
+
+An event is received by a class.
+
+```
+|-------------------------------|             |-------------------------------|
+|        Receiving_Class        |             |           <<event>>           |
+|-------------------------------|             |        Something_Occured      |
+| ...                           |  <<receive>>|-------------------------------|
+|-------------------------------|- - - - - - >| + Param_1:type_1              | 
+| ...                           |             | + Param_2:type_2              | 
+|-------------------------------|             |-------------------------------|
+```
+
+The event reception is implemented by a public function provided by the class
+that has the same prototype as the event signature definition plus a constant
+reference to the object as first parameter.
+
+```C
+/*******************************************/
+/* Receiving_Class.h */
+/*******************************************/
+#ifndef RECEIVING_CLASS_H
+#define RECEIVING_CLASS_H
+
+/* Received event signature inclusion */
+#include "Something_Occured.h"
+
+...
+
+/* Class declaration */
+typedef struct {
+    ...
+} Receiving_Class;
+
+/* Received event */
+void Receiving_Class_Something_Occured(
+    const Receiving_Class* Me,
+    type_1 param_1,
+    type_2 param_2 )
+
+#endif
+/*******************************************/
+```
+
+An object receive the actual event.
+
+```
+|-------------------------------|             |-------------------------------|
+|Receiver_Object:Receiving_Class|             |           <<event>>           |
+|-------------------------------|             |    Fired:Something_Occured    |
+| ...                           |  <<receive>>|-------------------------------|
+|-------------------------------|- - - - - - >| + Param_1:type_1              | 
+| ...                           |             | + Param_2:type_2              | 
+|-------------------------------|             |-------------------------------|
+```
+
+The actual event reception is implemented by a function declared in the object
+header file and defined in the object source file.
+
+```C
+/*******************************************/
+/* Receiver_Object.h */
+/*******************************************/
+
+/* Received event signature inclusion */
+#include "Something_Occured.h"
+
+/* Object */
+const Receiving_Class Receiver_Object;
+
+/* Event reception */
+void Receiver_Object__Fired(
+    type_1 param_1,
+    type_2 param_2 );
+
+/*******************************************/
+
+
+```C
+/*******************************************/
+/* Receiver_Object.c */
+/*******************************************/
+#include "Receiver_Object.h"
+
+
+/* Object */
+const Receiving_Class Receiver_Object = {
+    ...
+};
+
+/* Received event definition */
+void Receiver_Object__Fired(
+    type_1 param_1,
+    type_2 param_2 )
+{
+    Receiving_Class_Something_Occured(
+        &Receiver_Object,
+        param_1,
+        param_2);
+}
+/*******************************************/
+```
 
 ## Specialization
 
