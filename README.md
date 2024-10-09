@@ -195,9 +195,10 @@ My_Class My_Object = {
 
 Actually all the attributes of a class are not variable. Some of them can be
 constant.  
-For robustness purpose, it is interesting to split the class in two parts : the variable and the constant.  
+For robustness purpose, it is interesting to split the class in two parts : the
+variable and the constant.  
 The variable part of the class is allocated in RAM while the constant part is
-allocated in ROM.
+allocated in ROM.  
 The constant part has a reference to the variable part.
 
 The split is done in the header file of the class.
@@ -216,7 +217,7 @@ typedef struct {
 
 /* Class declaration */
 typedef struct {
-    const My_Class_Var* var_attr;
+    const My_Class_Var* Var_Attr;
     const type_2 attribute_2;
 } My_Class;
 
@@ -256,8 +257,274 @@ My_Class_Var My_Object_Var = {
 
 /* Object */
 const My_Class My_Object = {
-    .var_attr = &My_Object_Var,
+    .Var_Attr = &My_Object_Var,
     .attribute_2 = 13
+};
+/*******************************************/
+```
+
+## Specialization
+
+A class can specialized an other one.
+A class that specializes an other one must have a data structure compatible
+with the generalized one : only the addition of new attributes is permitted.
+
+
+```
+|-------------------------------|
+|        My_Base_Class          |
+|-------------------------------|
+| + Do_Something()              |
+|                               |
+|                               |
+|-------------------------------|
+| - attribute_1:type_1          |
+| - attribute_2:type_2          |
+|-------------------------------|
+              / \
+               |
+
+               |
+
+               |
+|-------------------------------|
+|     My_Specialized_Class      |
+|-------------------------------|
+| + Do_Something_Else()         |
+|                               |
+|                               |
+|-------------------------------|
+| - attribute_3:type_3          |
+| - attribute_4:type_4          |
+|-------------------------------|               
+```
+
+To implements the specialization, one shall define a field, in first position
+of the structure of the specialized class, that has the type of the generalized
+class.  
+The inheritance is applied on both the variable attributes and the constant
+part of the class.  
+The generalized class is also name "super class". By convention this field has
+the name _Super_.
+
+```C
+/*******************************************/
+/* My_Specialized_Class.h */
+/*******************************************/
+#ifndef MY_SPECIALIZED_CLASS_H
+#define MY_SPECIALIZED_CLASS_H
+
+/* Class variables */
+typedef struct {
+    My_Generalized_Class_Var Super;
+    type_3 attribute_3;
+    type_4 attribute_4;
+} My_Specialized_Class_Var;
+
+/* Class declaration */
+typedef struct {
+    My_Generalized_Class Super;
+    ...
+} My_Specialized_Class;
+
+#endif
+/*******************************************/
+```
+
+When an objet is instantiated from the specialized class, the refernece to the
+variable part of the generalized class (_Super_ field) is valued by the adress
+of the variable part of the specialized object.
+
+```C
+/*******************************************/
+/* My_Specialized_Object.c */
+/*******************************************/
+#include "My_Specialized_Object.h"
+
+My_Specialized_Class_Var My_Specialized_Object_Var = {
+    .Super = {
+        .attribute_1 = 11,
+        .attribute_2 = 22
+    },
+    .attribute_3 = 33,
+    attribute_4 = 44
+};
+
+const My_Specialized_Class My_Specialized_Object = {
+    .Super = {
+        .Var_Attr = (My_Specialized_Class_Var*)&My_Specialized_Object_Var,
+        ...
+    },
+    ...
+};
+/*******************************************/
+```
+
+To use the methods of a super class, a cast must be used.
+```C
+/*******************************************/
+{
+    ...
+    My_Specialized_Class obj;
+    ...
+    Do_Something( (My_Generalized_Class*)&obj );
+    ...
+}
+/*******************************************/
+```
+
+The last two patterns are a limitation of the C language compared to true OO
+languages.
+
+## Polymorphism
+
+A class can be abstract and specialized by several sub-classes.
+
+```
+|-------------------------------|
+|       My_Abstract_Class       |
+|-------------------------------|
+| + <<abst>>Do_Something()      |
+| + <<abst>>Do_Something_Else() |
+|                               |
+|-------------------------------|
+| - attribute_1:type_1          |
+| - attribute_2:type_2          |
+|-------------------------------|
+              / \       / \
+               |         |   __   __  __  __  __  __  __  __
+
+               |                                            |
+
+               |                                            |
+|-------------------------------|           |-------------------------------|
+|            My_Class           |           |        My_Other_Class         |
+|-------------------------------|           |-------------------------------|
+| + Do_Something_Specific()     |           | + Do_Anything()               |
+|                               |           |                               |
+|                               |           |                               |
+|-------------------------------|           |-------------------------------|
+| - attribute_3:type_3          |           | - attribute_5:type_5          |
+| - attribute_4:type_4          |           | - attribute_6:type_6          |
+|-------------------------------|           |-------------------------------|
+```
+
+A table of pointers on functions is used to determine, for each concrete class,
+what specific code must be called. This table is named "virtual methods table".
+The reference to this table (_Virtual_Methods_) is added to the constant part
+of the class.
+
+```C
+/*******************************************/
+/* My_Abstract_Class.h */
+/*******************************************/
+#ifndef MY_ABSTRACT_CLASS_H
+#define MY_ABSTRACT_CLASS_H
+
+/* Class variables */
+typedef struct {
+    type_1 attribute_1;
+    type_2 attribute_2;
+} My_Abstract_Class_Var;
+
+/* Class declaration */
+typedef struct _My_Abstract_Class My_Abstract_Class;
+
+typedef struct {
+    void (*do_something)( const My_Abstract_Class* );
+    void (*do_something_else)( const My_Abstract_Class* );
+} My_Abstract_Class_Meth;
+
+typedef struct _My_Abstract_Class {
+    const My_Abstract_Class_Var* Var_Attr;
+    const My_Abstract_Class_Meth* Virtual_Methods;
+};
+
+/* Virtual methods */
+void Do_Something( const My_Abstract_Class* Me );
+void Do_Something_Else( const My_Abstract_Class* Me );
+...
+
+#endif
+/*******************************************/
+```
+
+The code of the abstract class will indirectly call the code of any concrete
+class instance using the provided virtual function table.
+
+```C
+/*******************************************/
+/* My_Abstract_Class.c */
+/*******************************************/
+#include "My_Abstract_Class.h"
+
+/* Virtual methods */
+void Do_Something( const My_Abstract_Class* Me )
+{
+    Me->Virtual_Methods->do_something(Me);
+}
+void Do_Something_Else( const My_Abstract_Class* Me )
+{
+    Me->Virtual_Methods->do_something_else(Me);
+}
+/*******************************************/
+```
+
+A concrete class inherits of an abstract class : the inheritance is applied on
+both the variablr and the constant part of the class.  
+Generally, each concrete class owns one specific instance of virtual methods table.
+
+```C
+/*******************************************/
+/* My_Class.h */
+/*******************************************/
+#ifndef MY_CLASS_H
+#define MY_CLASS_H
+
+/* Class variables */
+typedef struct {
+    My_Abstract_Class_Var Super;
+    type_3 attribute_3;
+    type_4 attribute_4;
+} My_Class_Var;
+
+/* Class declaration */
+typedef struct {
+    My_Abstract_Class* Super,
+    ...
+}My_Class;
+
+/* Virtual methods table */
+extern My_Abstract_Class_Meth My_Class_Meth;
+
+/*******************************************/
+```
+
+The concrete class shall define some private methods that will implement all
+the virtual operations of the super class.   
+The adress of these functions are placed in the virtual methods table of the
+class.
+
+```C
+/*******************************************/
+/* My_Class.c */
+/*******************************************/
+#include "My_Class.h"
+
+/* Virtual methods implementation */
+static void Do_Something_My_Class( const My_Class* Me )
+{
+    ....
+}
+
+static void Do_Something_Else_My_Class( const My_Class* Me )
+{
+    ...
+}
+
+My_Abstract_Class_Meth My_Class_Meth = {
+    ( void (*) ( const My_Abstract_Class* ) ) Do_Something_My_Class,
+    ( void (*) ( const My_Abstract_Class* ) ) Do_Something_Else_My_Class
 };
 /*******************************************/
 ```
@@ -859,7 +1126,7 @@ void Receiver_Object__Fired(
     type_2 param_2 );
 
 /*******************************************/
-
+```
 
 ```C
 /*******************************************/
@@ -885,7 +1152,3 @@ void Receiver_Object__Fired(
 }
 /*******************************************/
 ```
-
-## Specialization
-
-## Polymorphism
